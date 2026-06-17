@@ -1,20 +1,13 @@
 # ============================================================
-# APP TRIGGER
-# When a release is published, creates a GitHub Issue
-# in the ops repo requesting deployment approval.
-# Admin reviews issue and adds "approved" label to deploy.
-#
-# HOW TO DEPLOY:
-# 1. Push your code to main as normal
-# 2. When ready → create a Release in GitHub
-#    Releases → Create new release → Tag: v1.0.0 → Publish
-# 3. This trigger creates an issue in ops repo
-# 4. Admin approves → app deploys automatically
+# REQUEST DEPLOYMENT
+# Triggered when a release is published
+# Requests deployment to production environment
+# Admin approves in GitHub → deploy.yml runs automatically
 #
 # GITEA MIGRATION:
-# - Replace api.github.com with gitea.company.internal/api/v1
+# - Replace ubuntu-latest with self-hosted runner name
 # - Replace cbcbmbtTest with Gitea org name
-# - Update issue creation endpoint for Gitea API
+# - Replace github.com with gitea.company.internal
 # ============================================================
 
 name: Request Deployment
@@ -24,17 +17,20 @@ on:
     types: [published]
 
 jobs:
-  create-issue:
+  request:
     runs-on: ubuntu-latest
+    environment: production
     steps:
-      - name: Create deployment issue
+      # ── Trigger central deploy workflow ───────────────────
+      # Only runs after admin approves in GitHub
+      # GITEA: replace api.github.com with gitea.company.internal/api/v1
+      # GITEA: replace cbcbmbtTest with Gitea org name
+      - name: Trigger deploy
+        env:
+          TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
           curl -X POST \
-            -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
+            -H "Authorization: token $TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/cbcbmbtTest/ops/issues \
-            -d '{
-              "title": "Deploy ${{ github.event.repository.name }} ${{ github.event.release.tag_name }}",
-              "body": "## Deployment Request\n\n**App:** ${{ github.event.repository.name }}\n**Version:** ${{ github.event.release.tag_name }}\n**Released:** ${{ github.event.release.created_at }}\n**Release notes:** ${{ github.event.release.html_url }}\n\nTo approve: change label to approved\nTo reject: close this issue",
-              "labels": ["pending approval"]
-            }'
+            https://api.github.com/repos/cbcbmbtTest/ops/actions/workflows/deploy.yml/dispatches \
+            -d "{\"ref\":\"main\",\"inputs\":{\"repo\":\"${{ github.event.repository.name }}\",\"version\":\"${{ github.event.release.tag_name }}\"}}"
