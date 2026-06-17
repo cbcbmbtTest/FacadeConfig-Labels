@@ -1,7 +1,5 @@
 # ============================================================
 # APP TRIGGER
-# Sends signal to central deploy workflow when code is pushed
-# This is the only action file needed in each app repo
 # Sends signal to central deploy workflow when a release
 # is published. Only triggers on official releases,
 # not on every code push.
@@ -15,16 +13,33 @@
 #
 # GITEA MIGRATION:
 # - Replace github.com with gitea.company.internal
-@@ -12,8 +20,10 @@
+# - Replace cbcbmbtTest with Gitea org name
+# - Update API endpoint for Gitea workflow dispatch
+# ============================================================
+
 name: Trigger Deploy
 
 on:
-  push:
-    branches: [main]
   # Only triggers when a release is published
   # Not on every push — developer controls when to deploy
   release:
     types: [published]
 
 jobs:
-trigger:
+  trigger:
+    # GITEA: replace with self-hosted runner name
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Trigger central deploy workflow ───────────────────
+      # Sends repo name to ops/deploy.yml
+      # ops workflow handles everything else
+      # GITEA: replace api.github.com with gitea.company.internal/api/v1
+      # GITEA: replace cbcbmbtTest with Gitea org name
+      - name: Trigger central deploy
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.REGISTRY_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/cbcbmbtTest/ops/actions/workflows/deploy.yml/dispatches \
+            -d '{"ref":"main","inputs":{"repo":"${{ github.event.repository.name }}"}}'
